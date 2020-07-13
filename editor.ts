@@ -6,9 +6,9 @@ async function parseImagesResponse(response_obj: object): Promise<Array<MappedIm
     let mapped_images = new Array<MappedImage>();
     let response_images: Array<object> = response_obj["images"];
     response_images.forEach((image: object) => {
-        const name: string = image["name"];
+        const src: string = image["src"];
         const points: Array<Point> = (image["points"] || []).map(parsePoint);
-        mapped_images.push(new MappedImage(name, points));
+        mapped_images.push(new MappedImage(src, points));
     });
     return mapped_images;
 }
@@ -23,7 +23,7 @@ class EditImage {
         this.img = parent.ownerDocument.createElement("img");
         this.div.appendChild(this.img);
         this.img.classList.add("select");
-        this.img.src = "images/" + image.name;
+        this.img.src = "images/" + image.src;
 
         this.image.points.forEach(point => this.addDot(point))
 

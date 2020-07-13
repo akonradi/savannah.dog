@@ -10,5 +10,5 @@ class Point {
 }
 
 class MappedImage {
-    constructor(public name: string, public points: Array<Point>) {}
+    constructor(public src: string, public points: Array<Point>) {}
 }
