@@ -5,16 +5,19 @@ class ScreenPosition {
     constructor(public x: number, public y: number) { }
 }
 
-class ImagePosition {
-    constructor(public x: number, public y: number, public scale: number) { }
+class ImagePosition extends ScreenPosition {
+    constructor(x: number, y: number, public scale: number) {
+        super(x, y);
+    }
 }
 
 class DisplayableImage {
     constructor(public img: HTMLImageElement, public points: Array<Point>) { }
 }
 
-class DisplayPoint {
-    constructor(public x: number, public y: number, public position: ImagePosition, public img: HTMLImageElement) {
+class DisplayPoint extends ScreenPosition {
+    constructor(x: number, y: number, public position: ImagePosition, public img: HTMLImageElement) {
+        super(x, y);
     }
 }
 
@@ -27,32 +30,23 @@ class MultiImageMap {
     constructor(public container: HTMLElement) {
         this.images = [];
 
-        this.bounds = this.container.getBoundingClientRect();
-
         this.overlay_canvas = this.container.getElementsByTagName("canvas")[0];
+        this.bounds = this.container.getBoundingClientRect();
+        this.reRender();
+    }
+
+    reRender() {
+        console.log("rerendering");
+        this.bounds = this.container.getBoundingClientRect();
         this.overlay_canvas.width = this.bounds.width;
         this.overlay_canvas.height = this.bounds.height;
-
-        this.overlay_canvas.addEventListener("touchmove", event => {
-            event.preventDefault();
-            this.redraw(new ScreenPosition(event.touches[0].clientX, event.touches[0].clientY));
-        });
-        this.overlay_canvas.addEventListener("mousemove", event => {
-            this.redraw(new ScreenPosition(event.clientX, event.clientY));
-        });
-        window.addEventListener("resize", () => {
-            console.log("window resize");
-            this.bounds = this.container.getBoundingClientRect();
-            this.overlay_canvas.width = this.bounds.width;
-            this.overlay_canvas.height = this.bounds.height;
-            this.delaunay = d3_delaunay.Delaunay.from(this.getDisplayPoints().map(p => [p.x, p.y]));
-            this.redraw()
-        });
+        this.delaunay = d3_delaunay.Delaunay.from(this.getDisplayPoints().map(p => [p.x, p.y]));
+        this.redraw()
     }
 
     addImage(img: HTMLImageElement, points: Array<Point>) {
         this.images.push(new DisplayableImage(img, points));
-        this.delaunay = d3_delaunay.Delaunay.from(this.getDisplayPoints().map(p => [p.x, p.y]));
+        this.reRender();
     }
 
     getDisplayPoints(): Array<DisplayPoint> {
@@ -82,7 +76,7 @@ class MultiImageMap {
     }
 
     redraw(point: ScreenPosition | null = null) {
-        if (!this.delaunay) {
+        if (!this.delaunay || this.images.length == 0) {
             return;
         }
         console.log("redrawing", this.delaunay.points);
@@ -118,6 +112,17 @@ function displayImages(images: Array<MappedImage>, container: HTMLElement) {
             map.redraw();
         });
     })
+
+    map.overlay_canvas.addEventListener("touchmove", event => {
+        event.preventDefault();
+        map.redraw(new ScreenPosition(event.touches[0].clientX, event.touches[0].clientY));
+    });
+    map.overlay_canvas.addEventListener("mousemove", event => {
+        map.redraw(new ScreenPosition(event.clientX, event.clientY));
+    });
+    window.addEventListener("resize", () => {
+        map.reRender();
+    });
 }
 
 window.addEventListener("load", event => {
