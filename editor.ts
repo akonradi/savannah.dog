@@ -1,3 +1,5 @@
+import {parseImagesResponse, MappedImage, Point} from "./types.js";
+
 class EditImage {
     img: HTMLImageElement;
     div: HTMLDivElement;

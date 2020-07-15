@@ -1,3 +1,6 @@
+import * as d3_delaunay from "./d3-delaunay.js";
+import { parseImagesResponse, MappedImage, Point } from "./types.js"
+
 class Dimensions {
     constructor(public x: number, public y: number) { }
 }
@@ -15,6 +18,7 @@ class MultiImageMap {
     images: Array<DisplayableImage>;
     overlay: HTMLDivElement;
     overlay_map: HTMLMapElement;
+    overlay_canvas: HTMLCanvasElement;
     constructor(public container: HTMLElement) {
         this.images = [];
         this.overlay = container.ownerDocument.createElement("div");
@@ -29,6 +33,12 @@ class MultiImageMap {
         this.overlay_map = this.container.ownerDocument.createElement("map");
         this.overlay_map.name = "overlay-map";
         this.overlay.appendChild(this.overlay_map);
+
+        this.overlay_canvas = this.container.ownerDocument.createElement("canvas");
+        const bounds = this.overlay.getBoundingClientRect();
+        this.overlay_canvas.width = bounds.width;
+        this.overlay_canvas.height = bounds.height;
+        this.overlay.appendChild(this.overlay_canvas);
     }
 
     addImage(img: HTMLImageElement, points: Array<Point>) {
@@ -47,26 +57,51 @@ class MultiImageMap {
     }
 
     redraw() {
-        console.log("Drawing ", this);
         let m = this.overlay_map;
         m.childNodes.forEach(child => m.removeChild(child));
 
-        this.getDisplayPoints().forEach(point => {
+        const points = this.getDisplayPoints();
+        console.log(points);
+        const delaunay = d3_delaunay.Delaunay.from(points.map(point => {
+            return [point.x, point.y];
+        }));
+        let bounds = this.container.getBoundingClientRect();
+        let voronoi = delaunay.voronoi([bounds.left, bounds.top, bounds.right, bounds.bottom]);
+
+        points.forEach((point, index) => {
+            const poly: Array<number> = voronoi.cellPolygon(index);
             let area = this.container.ownerDocument.createElement("area");
+            area.shape = "poly";
+            area.coords = poly.map(point => `${point[0]},${point[1]}`).join(",");
+
             area.addEventListener("mouseenter", () => {
-                console.log("enter", point.img);
                 point.img.classList.add("show");
             });
             area.addEventListener("mouseleave", () => {
-                console.log("leave", point.img);
                 point.img.classList.remove("show");
             });
-
-            area.shape = "circle";
-            area.coords = `${point.x},${point.y},100`;
-
             this.overlay_map.appendChild(area);
-        })
+        });
+
+        if (this.overlay_canvas) {
+            let context = this.overlay_canvas.getContext("2d");
+            context.clearRect(0, 0, this.overlay_canvas.width, this.overlay_canvas.height);
+
+            context.beginPath();
+            delaunay.render(context);
+            context.strokeStyle = "#ccc";
+            context.stroke();
+
+            context.beginPath();
+            voronoi.render(context);
+            voronoi.renderBounds(context);
+            context.strokeStyle = "#000";
+            context.stroke();
+
+            context.beginPath();
+            delaunay.renderPoints(context);
+            context.fill();
+        }
     }
 }
 

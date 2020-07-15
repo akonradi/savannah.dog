@@ -1,4 +1,4 @@
-class Point {
+export class Point {
     constructor(public x: number, public y: number) {
         if (x < 0 || x > 1) {
             throw `x out of bounds: ${x}`;
@@ -9,15 +9,15 @@ class Point {
     }
 }
 
-class MappedImage {
+export class MappedImage {
     constructor(public src: string, public points: Array<Point>) {}
 }
 
-function parsePoint(point: object): Point {
+export function parsePoint(point: object): Point {
     return new Point(point["x"], point["y"]);
 }
 
-async function parseImagesResponse(response_obj: object): Promise<Array<MappedImage>> {
+export async function parseImagesResponse(response_obj: object): Promise<Array<MappedImage>> {
     let mapped_images = new Array<MappedImage>();
     let response_images: Array<object> = response_obj["images"];
     response_images.forEach((image: object) => {
