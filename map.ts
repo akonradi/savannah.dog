@@ -1,8 +1,8 @@
 import * as d3_delaunay from "./d3-delaunay.js";
 import { parseImagesResponse, MappedImage, Point } from "./types.js"
 
-class ScreenPosition{
-    constructor(public x: number, public y: number) {}
+class ScreenPosition {
+    constructor(public x: number, public y: number) { }
 }
 
 class ImagePosition {
@@ -20,23 +20,18 @@ class DisplayPoint {
 
 class MultiImageMap {
     images: Array<DisplayableImage>;
-    overlay: HTMLDivElement;
     overlay_canvas: HTMLCanvasElement;
     bounds: DOMRect;
     delaunay: d3_delaunay.Delaunay;
 
     constructor(public container: HTMLElement) {
         this.images = [];
-        this.overlay = container.ownerDocument.createElement("div");
-        this.overlay.classList.add("overlay");
-        container.appendChild(this.overlay);
 
-        this.bounds = this.overlay.getBoundingClientRect();
+        this.bounds = this.container.getBoundingClientRect();
 
-        this.overlay_canvas = this.container.ownerDocument.createElement("canvas");
+        this.overlay_canvas = this.container.getElementsByTagName("canvas")[0];
         this.overlay_canvas.width = this.bounds.width;
         this.overlay_canvas.height = this.bounds.height;
-        this.overlay.appendChild(this.overlay_canvas);
 
         this.overlay_canvas.addEventListener("touchmove", event => {
             event.preventDefault();
@@ -45,12 +40,18 @@ class MultiImageMap {
         this.overlay_canvas.addEventListener("mousemove", event => {
             this.redraw(new ScreenPosition(event.clientX, event.clientY));
         });
+        window.addEventListener("resize", () => {
+            console.log("window resize");
+            this.bounds = this.container.getBoundingClientRect();
+            this.overlay_canvas.width = this.bounds.width;
+            this.overlay_canvas.height = this.bounds.height;
+            this.delaunay = d3_delaunay.Delaunay.from(this.getDisplayPoints().map(p => [p.x, p.y]));
+            this.redraw()
+        });
     }
 
     addImage(img: HTMLImageElement, points: Array<Point>) {
         this.images.push(new DisplayableImage(img, points));
-
-        const bounds = this.bounds;
         this.delaunay = d3_delaunay.Delaunay.from(this.getDisplayPoints().map(p => [p.x, p.y]));
     }
 
@@ -80,7 +81,7 @@ class MultiImageMap {
         return points;
     }
 
-    redraw(point : ScreenPosition | null = null) {
+    redraw(point: ScreenPosition | null = null) {
         if (!this.delaunay) {
             return;
         }
@@ -97,13 +98,10 @@ class MultiImageMap {
         this.delaunay.renderPoints(context);
         context.fill();
 
-        if (point) {
-        const i = this.delaunay.find(point.x, point.y);
+        const i = point ? this.delaunay.find(point.x, point.y) : 0;
         const img = this.getDisplayPoints()[i];
         const box = img.img.getBoundingClientRect();
         context.drawImage(img.img, img.position.x, img.position.y, box.width * img.position.scale, box.height * img.position.scale);
-        
-        }
     }
 }
 
@@ -113,7 +111,7 @@ function displayImages(images: Array<MappedImage>, container: HTMLElement) {
     images.forEach(image => {
         let img = container.ownerDocument.createElement("img");
         img.src = "/images/" + image.src;
-        img.classList.add("map-image");
+        img.classList.add("load-image");
         img.addEventListener("load", () => {
             container.appendChild(img);
             map.addImage(img, image.points);
