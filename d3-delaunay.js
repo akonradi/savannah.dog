@@ -551,7 +551,7 @@ class Polygon {
   }
 }
 
-class Voronoi {
+export class Voronoi {
   constructor(delaunay, [xmin, ymin, xmax, ymax] = [0, 0, 960, 500]) {
     if (!((xmax = +xmax) >= (xmin = +xmin)) || !((ymax = +ymax) >= (ymin = +ymin))) throw new Error("invalid bounds");
     this.delaunay = delaunay;
@@ -897,7 +897,7 @@ function jitter(x, y, r) {
   return [x + Math.sin(x + y) * r, y + Math.cos(x - y) * r];
 }
 
-class Delaunay {
+export class Delaunay {
   static from(points, fx = pointX, fy = pointY, that) {
     return new Delaunay("length" in points
         ? flatArray(points, fx, fy, that)
@@ -1108,8 +1108,3 @@ function* flatIterable(points, fx, fy, that) {
     ++i;
   }
 }
-
-const _Delaunay = Delaunay;
-export { _Delaunay as Delaunay };
-const _Voronoi = Voronoi;
-export { _Voronoi as Voronoi };

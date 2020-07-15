@@ -1,8 +1,12 @@
 import * as d3_delaunay from "./d3-delaunay.js";
 import { parseImagesResponse, MappedImage, Point } from "./types.js"
 
-class Dimensions {
-    constructor(public x: number, public y: number) { }
+class ScreenPosition{
+    constructor(public x: number, public y: number) {}
+}
+
+class ImagePosition {
+    constructor(public x: number, public y: number, public scale: number) { }
 }
 
 class DisplayableImage {
@@ -10,97 +14,95 @@ class DisplayableImage {
 }
 
 class DisplayPoint {
-    constructor(public x: number, public y: number, public img: HTMLImageElement) {
+    constructor(public x: number, public y: number, public position: ImagePosition, public img: HTMLImageElement) {
     }
 }
 
 class MultiImageMap {
     images: Array<DisplayableImage>;
     overlay: HTMLDivElement;
-    overlay_map: HTMLMapElement;
     overlay_canvas: HTMLCanvasElement;
+    bounds: DOMRect;
+    delaunay: d3_delaunay.Delaunay;
+
     constructor(public container: HTMLElement) {
         this.images = [];
         this.overlay = container.ownerDocument.createElement("div");
         this.overlay.classList.add("overlay");
         container.appendChild(this.overlay);
 
-        let overlay_img = this.container.ownerDocument.createElement("img");
-        overlay_img.src = "/images/transparent.png";
-        overlay_img.useMap = "#overlay-map";
-        this.overlay.appendChild(overlay_img);
-
-        this.overlay_map = this.container.ownerDocument.createElement("map");
-        this.overlay_map.name = "overlay-map";
-        this.overlay.appendChild(this.overlay_map);
+        this.bounds = this.overlay.getBoundingClientRect();
 
         this.overlay_canvas = this.container.ownerDocument.createElement("canvas");
-        const bounds = this.overlay.getBoundingClientRect();
-        this.overlay_canvas.width = bounds.width;
-        this.overlay_canvas.height = bounds.height;
+        this.overlay_canvas.width = this.bounds.width;
+        this.overlay_canvas.height = this.bounds.height;
         this.overlay.appendChild(this.overlay_canvas);
+
+        this.overlay_canvas.addEventListener("touchmove", event => {
+            event.preventDefault();
+            this.redraw(new ScreenPosition(event.touches[0].clientX, event.touches[0].clientY));
+        });
+        this.overlay_canvas.addEventListener("mousemove", event => {
+            this.redraw(new ScreenPosition(event.clientX, event.clientY));
+        });
     }
 
     addImage(img: HTMLImageElement, points: Array<Point>) {
         this.images.push(new DisplayableImage(img, points));
+
+        const bounds = this.bounds;
+        this.delaunay = d3_delaunay.Delaunay.from(this.getDisplayPoints().map(p => [p.x, p.y]));
     }
 
     getDisplayPoints(): Array<DisplayPoint> {
         let points = [];
         this.images.forEach(i => {
+            // Scale image to fit the screen
             const rect = i.img.getBoundingClientRect();
+            const width_scale = this.bounds.width / rect.width;
+            const height_scale = this.bounds.height / rect.height;
+
+            const scale = Math.max(width_scale, height_scale);
+            const left = this.bounds.width / 2 - rect.width / 2 * scale + this.bounds.left;
+            const top = this.bounds.height / 2 - rect.height / 2 * scale + this.bounds.top;
+
+            // console.log(i.img.src, "width", rect.width, "height", rect.height, width_scale, height_scale, scale, left, top);
             i.points.forEach(p => {
-                points.push(new DisplayPoint(p.x * rect.width + rect.left, p.y * rect.height + rect.top, i.img));
+                const x = p.x * rect.width * scale + left;
+                const y = p.y * rect.height * scale + top;
+                //   console.log("point", x, y);
+                if (this.bounds.left <= x && this.bounds.right >= x && this.bounds.top <= y && this.bounds.bottom >= y) {
+                    points.push(new DisplayPoint(x, y, new ImagePosition(left, top, scale), i.img));
+                }
             })
         });
+        console.log(points);
         return points;
     }
 
-    redraw() {
-        let m = this.overlay_map;
-        m.childNodes.forEach(child => m.removeChild(child));
+    redraw(point : ScreenPosition | null = null) {
+        if (!this.delaunay) {
+            return;
+        }
+        console.log("redrawing", this.delaunay.points);
+        let context = this.overlay_canvas.getContext("2d");
+        context.clearRect(0, 0, this.overlay_canvas.width, this.overlay_canvas.height);
 
-        const points = this.getDisplayPoints();
-        console.log(points);
-        const delaunay = d3_delaunay.Delaunay.from(points.map(point => {
-            return [point.x, point.y];
-        }));
-        let bounds = this.container.getBoundingClientRect();
-        let voronoi = delaunay.voronoi([bounds.left, bounds.top, bounds.right, bounds.bottom]);
+        context.beginPath();
+        this.delaunay.render(context);
+        context.strokeStyle = "#ccc";
+        context.stroke();
 
-        points.forEach((point, index) => {
-            const poly: Array<number> = voronoi.cellPolygon(index);
-            let area = this.container.ownerDocument.createElement("area");
-            area.shape = "poly";
-            area.coords = poly.map(point => `${point[0]},${point[1]}`).join(",");
+        context.beginPath();
+        this.delaunay.renderPoints(context);
+        context.fill();
 
-            area.addEventListener("mouseenter", () => {
-                point.img.classList.add("show");
-            });
-            area.addEventListener("mouseleave", () => {
-                point.img.classList.remove("show");
-            });
-            this.overlay_map.appendChild(area);
-        });
-
-        if (this.overlay_canvas) {
-            let context = this.overlay_canvas.getContext("2d");
-            context.clearRect(0, 0, this.overlay_canvas.width, this.overlay_canvas.height);
-
-            context.beginPath();
-            delaunay.render(context);
-            context.strokeStyle = "#ccc";
-            context.stroke();
-
-            context.beginPath();
-            voronoi.render(context);
-            voronoi.renderBounds(context);
-            context.strokeStyle = "#000";
-            context.stroke();
-
-            context.beginPath();
-            delaunay.renderPoints(context);
-            context.fill();
+        if (point) {
+        const i = this.delaunay.find(point.x, point.y);
+        const img = this.getDisplayPoints()[i];
+        const box = img.img.getBoundingClientRect();
+        context.drawImage(img.img, img.position.x, img.position.y, box.width * img.position.scale, box.height * img.position.scale);
+        
         }
     }
 }
