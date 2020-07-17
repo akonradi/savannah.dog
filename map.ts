@@ -12,7 +12,7 @@ class ImagePosition extends ScreenPosition {
 }
 
 class DisplayableImage {
-    constructor(public img: HTMLImageElement, public points: Array<Point>) { }
+    constructor(public img: HTMLImageElement, public point: Point) { }
 }
 
 class DisplayPoint extends ScreenPosition {
@@ -26,9 +26,11 @@ class MultiImageMap {
     overlay_canvas: HTMLCanvasElement;
     bounds: DOMRect;
     delaunay: d3_delaunay.Delaunay;
+    active_image: number;
 
-    constructor(public container: HTMLElement) {
+    constructor(public container: HTMLElement, public debug: boolean = false) {
         this.images = [];
+        this.active_image = 0;
 
         this.overlay_canvas = this.container.getElementsByTagName("canvas")[0];
         this.bounds = this.container.getBoundingClientRect();
@@ -45,7 +47,7 @@ class MultiImageMap {
     }
 
     addImage(img: HTMLImageElement, points: Array<Point>) {
-        this.images.push(new DisplayableImage(img, points));
+        points.forEach(point => this.images.push(new DisplayableImage(img, point)));
         this.reRender();
     }
 
@@ -62,14 +64,12 @@ class MultiImageMap {
             const top = this.bounds.height / 2 - rect.height / 2 * scale + this.bounds.top;
 
             // console.log(i.img.src, "width", rect.width, "height", rect.height, width_scale, height_scale, scale, left, top);
-            i.points.forEach(p => {
-                const x = p.x * rect.width * scale + left;
-                const y = p.y * rect.height * scale + top;
-                //   console.log("point", x, y);
-                if (this.bounds.left <= x && this.bounds.right >= x && this.bounds.top <= y && this.bounds.bottom >= y) {
-                    points.push(new DisplayPoint(x, y, new ImagePosition(left, top, scale), i.img));
-                }
-            })
+            const x = i.point.x * rect.width * scale + left;
+            const y = i.point.y * rect.height * scale + top;
+            //   console.log("point", x, y);
+            if (this.bounds.left <= x && this.bounds.right >= x && this.bounds.top <= y && this.bounds.bottom >= y) {
+                points.push(new DisplayPoint(x, y, new ImagePosition(left, top, scale), i.img));
+            }
         });
         console.log(points);
         return points;
@@ -83,25 +83,29 @@ class MultiImageMap {
         let context = this.overlay_canvas.getContext("2d");
         context.clearRect(0, 0, this.overlay_canvas.width, this.overlay_canvas.height);
 
-        context.beginPath();
-        this.delaunay.render(context);
-        context.strokeStyle = "#ccc";
-        context.stroke();
-
-        context.beginPath();
-        this.delaunay.renderPoints(context);
-        context.fill();
-
         const i = point ? this.delaunay.find(point.x, point.y) : 0;
         const img = this.getDisplayPoints()[i];
         const box = img.img.getBoundingClientRect();
         context.drawImage(img.img, img.position.x, img.position.y, box.width * img.position.scale, box.height * img.position.scale);
+        this.active_image = i;
+
+        if (this.debug) {
+            context.beginPath();
+            this.delaunay.renderPoints(context);
+            context.fill();
+
+            context.beginPath();
+            context.strokeStyle = "#ccc";
+            this.delaunay.voronoi([0, 0, this.overlay_canvas.width, this.overlay_canvas.height]).render(context);
+            context.stroke();
+        }
     }
 }
 
 
 function displayImages(images: Array<MappedImage>, container: HTMLElement) {
-    let map = new MultiImageMap(container);
+    const urlParams = new URLSearchParams(window.location.search);
+    let map = new MultiImageMap(container, urlParams.get("debug") == "on");
     images.forEach(image => {
         let img = container.ownerDocument.createElement("img");
         img.src = "/images/" + image.src;
