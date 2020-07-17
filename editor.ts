@@ -50,11 +50,25 @@ function outputJson(images: Array<MappedImage>, output: HTMLElement) {
     output.innerHTML = "<textarea>" + JSON.stringify({ "images": images }, null, 2) + "</textarea>";
 }
 
+function filterImages(images: Array<MappedImage>) : Array<MappedImage> {
+    let srcs = new Set<string>();
+    let new_images = [];
+    images.forEach(image => {
+        if (srcs.has(image.src)) {
+            return;
+        }
+        new_images.push(image);
+        srcs.add(image.src);
+    });
+    return new_images;
+}
+
 window.addEventListener("load", (ev) => {
     console.log("on window load");
 
     fetch("images/images.json").then(response => response.json())
         .then(parseImagesResponse)
+        .then(filterImages)
         .then(images => {
             loadImages(images, document.getElementById("image-select"));
             document.getElementById("output").addEventListener("click", function (event) { outputJson(images, this); });
