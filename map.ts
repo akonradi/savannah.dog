@@ -5,20 +5,23 @@ class ScreenPosition {
     constructor(public x: number, public y: number) { }
 }
 
-class ImagePosition extends ScreenPosition {
-    constructor(x: number, y: number, public scale: number) {
-        super(x, y);
-    }
-}
-
 class DisplayableImage {
     constructor(public img: HTMLImageElement, public point: Point) { }
 }
 
-class DisplayPoint extends ScreenPosition {
-    constructor(x: number, y: number, public position: ImagePosition, public img: HTMLImageElement) {
-        super(x, y);
-    }
+class ScreenBounds {
+    constructor(public x_min: number, public y_min: number, public x_max: number, public y_max: number) { }
+}
+
+class ImageDisplay {
+    constructor(public img: HTMLImageElement, public x_offset: number, public y_offset: number, public scale: number) { }
+}
+
+class MovableImage {
+    constructor(public display: ImageDisplay, public point: ScreenPosition, public bounds: ScreenBounds) { }
+}
+
+function relaxPoints(points: Array<MovableImage>) {
 }
 
 class MultiImageMap {
@@ -42,7 +45,7 @@ class MultiImageMap {
         this.bounds = this.container.getBoundingClientRect();
         this.overlay_canvas.width = this.bounds.width;
         this.overlay_canvas.height = this.bounds.height;
-        this.delaunay = d3_delaunay.Delaunay.from(this.getDisplayPoints().map(p => [p.x, p.y]));
+        this.delaunay = d3_delaunay.Delaunay.from(this.getDisplayPoints().map(p => [p.point.x, p.point.y]));
         this.redraw()
     }
 
@@ -51,27 +54,34 @@ class MultiImageMap {
         this.reRender();
     }
 
-    getDisplayPoints(): Array<DisplayPoint> {
-        let points = [];
+    getDisplayPoints(): Array<MovableImage> {
+        let points = new Array<MovableImage>();
+
         this.images.forEach(i => {
             // Scale image to fit the screen
             const rect = i.img.getBoundingClientRect();
             const width_scale = this.bounds.width / rect.width;
             const height_scale = this.bounds.height / rect.height;
-
             const scale = Math.max(width_scale, height_scale);
-            const left = this.bounds.width / 2 - rect.width / 2 * scale + this.bounds.left;
-            const top = this.bounds.height / 2 - rect.height / 2 * scale + this.bounds.top;
 
-            // console.log(i.img.src, "width", rect.width, "height", rect.height, width_scale, height_scale, scale, left, top);
+            const left = (this.bounds.width - rect.width * scale) / 2 + this.bounds.left;
+            const top = (this.bounds.height - rect.height * scale) / 2 + this.bounds.top;
+
             const x = i.point.x * rect.width * scale + left;
             const y = i.point.y * rect.height * scale + top;
-            //   console.log("point", x, y);
-            if (this.bounds.left <= x && this.bounds.right >= x && this.bounds.top <= y && this.bounds.bottom >= y) {
-                points.push(new DisplayPoint(x, y, new ImagePosition(left, top, scale), i.img));
-            }
+
+            const bounds = new ScreenBounds(x - (this.bounds.width - rect.width * scale) / 2,
+                y - (this.bounds.height - rect.height * scale) / 2,
+                x + (this.bounds.width - rect.width * scale) / 2,
+                y + (this.bounds.height - rect.height * scale) / 2);
+
+            const display = new ImageDisplay(i.img, left - x, top - y, scale);
+
+            points.push(new MovableImage(display, new ScreenPosition(x, y), bounds));
         });
-        console.log(points);
+
+        relaxPoints(points);
+
         return points;
     }
 
@@ -85,8 +95,9 @@ class MultiImageMap {
 
         const i = point ? this.delaunay.find(point.x, point.y) : 0;
         const img = this.getDisplayPoints()[i];
-        const box = img.img.getBoundingClientRect();
-        context.drawImage(img.img, img.position.x, img.position.y, box.width * img.position.scale, box.height * img.position.scale);
+        const box = img.display.img.getBoundingClientRect();
+        context.drawImage(img.display.img, 
+            img.point.x + img.display.x_offset, img.point.y + img.display.y_offset, box.width * img.display.scale, box.height * img.display.scale);
         this.active_image = i;
 
         if (this.debug) {
