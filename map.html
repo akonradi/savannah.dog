@@ -28,6 +28,15 @@
             left: 0px;
         }
 
+        #map #loading {
+            height: 100%;
+            width: 100%;
+            z-index: 101;
+            display: flex;
+            justify-content: center;
+            align-items: center;
+        }
+
         img.load-image {
             position: absolute;
             opacity: 0;
@@ -39,6 +48,7 @@
 <body>
     <div id="map">
         <canvas></canvas>
+        <div id="loading"><span>loading</span></div>
     </div>
 </body>
 

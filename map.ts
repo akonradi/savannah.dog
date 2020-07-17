@@ -34,13 +34,15 @@ function relaxPoints(points: Array<MovableImage>, num_rounds = 1) {
         let forces = points.map(() => [0, 0]);
         points.forEach((p, i) => {
             points.forEach((q, j) => {
-                if (i == j) {
+                if (i <= j) {
                     return;
                 }
                 let components = [spring_constant / (p.point.x - q.point.x), spring_constant / (p.point.y - q.point.y)];
                 components = components.map(v => clamp(v, -max_force_component, max_force_component));
                 forces[i][0] += components[0];
                 forces[i][1] += components[1];
+                forces[j][0] -= components[0];
+                forces[j][1] -= components[1];
             });
             forces[i][0] += 20 * spring_constant / (p.point.x - p.bounds.x_min);
             forces[i][0] += 20 * spring_constant / (p.point.x - p.bounds.x_max);
@@ -196,7 +198,9 @@ function displayImages(images: Array<MappedImage>, container: HTMLElement) {
     let loadedCount = 0;
     let rendered = false;
 
+    let loaded_msg = document.getElementById("loading").getElementsByTagName("span")[0];
     function onLoadImage() {
+        loaded_msg.innerHTML = `loaded ${loadedCount} of ${images.length}`;
         if (loadedCount == images.length) {
             if (!rendered) {
                 onImagesLoaded();
