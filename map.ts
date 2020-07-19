@@ -69,7 +69,7 @@ function toDisplayPoints(bounds: DOMRect, images: Array<DisplayableImage>): Arra
         const rect = i.img.getBoundingClientRect();
         const width_scale = bounds.width / rect.width;
         const height_scale = bounds.height / rect.height;
-        const scale = Math.max(width_scale, height_scale);
+        const scale = Math.max(width_scale, height_scale) * 1.1;
 
         const width_difference = bounds.width - rect.width * scale;
         const height_difference = bounds.height - rect.height * scale;
@@ -173,56 +173,86 @@ class MultiImageMap {
     }
 }
 
+class ImageLoader {
+    loaded: number;
+    constructor(
+        public document: Document) {
+    }
+
+    loadImage(src: string, high_res_src: string, onLoad: Function): HTMLImageElement {
+        let img = this.document.createElement("img");
+
+        let finishLowResLoad = () => {
+            console.log("finished first load of", img);
+            onLoad();
+            img.removeEventListener("load", finishLowResLoad);
+            console.log("removed listener from ", img);
+            this.loadHighRes(img, high_res_src);
+        }
+
+        img.addEventListener("load", finishLowResLoad);
+        img.src = src;
+
+        return img;
+    }
+
+    loadHighRes(img: HTMLImageElement, high_res_src: string) {
+        let high_res = this.document.createElement("img");
+
+        let finishHighResLoad = () => {
+            img.src = high_res.src;
+            high_res.removeEventListener("load", finishHighResLoad);
+        }
+        high_res.addEventListener("load", finishHighResLoad)
+        high_res.src = high_res_src;
+    }
+}
 
 function displayImages(images: Array<MappedImage>, container: HTMLElement) {
     const urlParams = new URLSearchParams(window.location.search);
-    let map = new MultiImageMap(container, urlParams.get("debug") == "on");
+    const debug = urlParams.get("debug") == "on";
 
-    function onImagesLoaded() {
-        map.render();
-        map.overlay_canvas.addEventListener("touchmove", event => {
-            event.preventDefault();
-            map.redraw(new ScreenPosition(event.touches[0].clientX, event.touches[0].clientY));
-        });
-        map.overlay_canvas.addEventListener("mousemove", event => {
-            map.redraw(new ScreenPosition(event.clientX, event.clientY));
-        });
-        window.addEventListener("resize", () => {
-            map.render();
-        });
-        window.addEventListener("click", () => {
-            map.relaxPoints();
-        })
-    }
+    let map = new MultiImageMap(container, debug);
 
     let loadedCount = 0;
-    let rendered = false;
-
     let loaded_msg = document.getElementById("loading").getElementsByTagName("span")[0];
     function onLoadImage() {
+        ++loadedCount;
         loaded_msg.innerHTML = `loaded ${loadedCount} of ${images.length}`;
+
         if (loadedCount == images.length) {
-            if (!rendered) {
-                onImagesLoaded();
-                rendered = true;
+            map.render();
+            map.overlay_canvas.addEventListener("touchmove", event => {
+                event.preventDefault();
+                map.redraw(new ScreenPosition(event.touches[0].clientX, event.touches[0].clientY));
+            });
+            map.overlay_canvas.addEventListener("mousemove", event => {
+                map.redraw(new ScreenPosition(event.clientX, event.clientY));
+            });
+            window.addEventListener("resize", () => {
+                map.render();
+            });
+            if (debug) {
+                window.addEventListener("click", () => {
+                    map.relaxPoints();
+                })
             }
         }
     }
-    images.forEach(image => {
-        let img = container.ownerDocument.createElement("img");
-        img.classList.add("load-image");
+    let loader = new ImageLoader(container.ownerDocument);
 
-        img.addEventListener("load", () => {
-            container.appendChild(img);
-            map.addImage(img, image.points);
-            loadedCount++;
+    images.forEach(image => {
+        let img = loader.loadImage("/images/low." + image.src, "/images/" + image.src, () => {
             onLoadImage();
+            map.addImage(img, image.points);
         });
+        img.classList.add("load-image");
+        container.appendChild(img);
+
         img.addEventListener("error", () => {
             loadedCount++;
             onLoadImage();
         });
-        img.src = "/images/" + image.src;
     })
 
 }
