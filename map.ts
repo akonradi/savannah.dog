@@ -111,12 +111,12 @@ class MultiImageMap {
     bounds: DOMRect;
     display_points: Array<MovableImage>;
     delaunay: d3_delaunay.Delaunay;
-    active_image: number;
+    active_point: ScreenPosition | null;
 
     constructor(public container: HTMLElement, public debug: boolean = false) {
         this.images = [];
         this.display_points = [];
-        this.active_image = 0;
+        this.active_point = null;
 
         this.overlay_canvas = this.container.getElementsByTagName("canvas")[0];
         this.bounds = this.container.getBoundingClientRect();
@@ -145,7 +145,7 @@ class MultiImageMap {
         this.redraw();
     }
 
-    redraw(point: ScreenPosition | null = null) {
+    redraw() {
         if (!this.delaunay || this.images.length == 0) {
             return;
         }
@@ -153,12 +153,11 @@ class MultiImageMap {
         let context = this.overlay_canvas.getContext("2d");
         context.clearRect(0, 0, this.overlay_canvas.width, this.overlay_canvas.height);
 
-        const i = point ? this.delaunay.find(point.x, point.y) : 0;
+        const i = this.active_point ? this.delaunay.find(this.active_point.x, this.active_point.y) : 0;
         const img = this.display_points[i];
         const box = img.display.img.getBoundingClientRect();
         context.drawImage(img.display.img,
             img.point.x + img.display.x_offset, img.point.y + img.display.y_offset, box.width * img.display.scale, box.height * img.display.scale);
-        this.active_image = i;
 
         if (this.debug) {
             context.beginPath();
@@ -179,7 +178,7 @@ class ImageLoader {
         public document: Document) {
     }
 
-    loadImage(src: string, high_res_src: string, onLoad: Function): HTMLImageElement {
+    loadImage(src: string, high_res_src: string, onLoad: Function, onHighResLoad: Function): HTMLImageElement {
         let img = this.document.createElement("img");
 
         let finishLowResLoad = () => {
@@ -187,7 +186,7 @@ class ImageLoader {
             onLoad();
             img.removeEventListener("load", finishLowResLoad);
             console.log("removed listener from ", img);
-            this.loadHighRes(img, high_res_src);
+            this.loadHighRes(img, high_res_src, onHighResLoad);
         }
 
         img.addEventListener("load", finishLowResLoad);
@@ -196,12 +195,13 @@ class ImageLoader {
         return img;
     }
 
-    loadHighRes(img: HTMLImageElement, high_res_src: string) {
+    loadHighRes(img: HTMLImageElement, high_res_src: string, onLoad: Function) {
         let high_res = this.document.createElement("img");
 
         let finishHighResLoad = () => {
             img.src = high_res.src;
             high_res.removeEventListener("load", finishHighResLoad);
+            onLoad();
         }
         high_res.addEventListener("load", finishHighResLoad)
         high_res.src = high_res_src;
@@ -224,12 +224,15 @@ function displayImages(images: Array<MappedImage>, container: HTMLElement) {
             map.render();
             map.overlay_canvas.addEventListener("touchmove", event => {
                 event.preventDefault();
-                map.redraw(new ScreenPosition(event.touches[0].clientX, event.touches[0].clientY));
+                map.active_point = new ScreenPosition(event.touches[0].clientX, event.touches[0].clientY)
+                map.redraw();
             });
             map.overlay_canvas.addEventListener("mousemove", event => {
-                map.redraw(new ScreenPosition(event.clientX, event.clientY));
+                map.active_point = new ScreenPosition(event.clientX, event.clientY);
+                map.redraw();
             });
             window.addEventListener("resize", () => {
+                map.active_point = null;
                 map.render();
             });
             if (debug) {
@@ -245,7 +248,7 @@ function displayImages(images: Array<MappedImage>, container: HTMLElement) {
         let img = loader.loadImage("/images/low." + image.src, "/images/" + image.src, () => {
             onLoadImage();
             map.addImage(img, image.points);
-        });
+        }, () => { map.redraw(); });
         img.classList.add("load-image");
         container.appendChild(img);
 
