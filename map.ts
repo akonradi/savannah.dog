@@ -26,9 +26,9 @@ function clamp(x: number, min: number, max: number) {
 }
 
 function relaxPoints(points: Array<MovableImage>, num_rounds = 1) {
-    const spring_constant = 100;
-    const max_force_component = 10;
-    const max_movement_per_round = 10;
+    const spring_constant = 200;
+    const max_force_component = 100;
+    const max_movement_per_round = 20;
 
     for (let round = 0; round < num_rounds; round++) {
         let forces = points.map(() => [0, 0]);
@@ -37,18 +37,19 @@ function relaxPoints(points: Array<MovableImage>, num_rounds = 1) {
                 if (i <= j) {
                     return;
                 }
-                let components = [spring_constant / (p.point.x - q.point.x), spring_constant / (p.point.y - q.point.y)];
+                let denominator = Math.pow(p.point.x - q.point.x, 2) + Math.pow(p.point.y - q.point.y, 2);
+                let components = [(p.point.x - q.point.x), (p.point.y - q.point.y)].map(v => v * spring_constant / denominator);
                 components = components.map(v => clamp(v, -max_force_component, max_force_component));
                 forces[i][0] += components[0];
                 forces[i][1] += components[1];
                 forces[j][0] -= components[0];
                 forces[j][1] -= components[1];
             });
-            forces[i][0] += 20 * spring_constant / (p.point.x - p.bounds.x_min);
-            forces[i][0] += 20 * spring_constant / (p.point.x - p.bounds.x_max);
+            forces[i][0] += 10 * spring_constant / (p.point.x - p.bounds.x_min);
+            forces[i][0] += 10 * spring_constant / (p.point.x - p.bounds.x_max);
 
-            forces[i][1] += 20 * spring_constant / (p.point.y - p.bounds.y_min);
-            forces[i][1] += 20 * spring_constant / (p.point.y - p.bounds.y_max);
+            forces[i][1] += 10 * spring_constant / (p.point.y - p.bounds.y_min);
+            forces[i][1] += 10 * spring_constant / (p.point.y - p.bounds.y_max);
         });
         points.forEach((p, i) => {
             let movement = forces[i].map(v => clamp(v, -max_movement_per_round, max_movement_per_round));
@@ -112,11 +113,13 @@ class MultiImageMap {
     display_points: Array<MovableImage>;
     delaunay: d3_delaunay.Delaunay;
     active_point: ScreenPosition | null;
+    last_drawn_image : number | null;
 
     constructor(public container: HTMLElement, public debug: boolean = false) {
         this.images = [];
         this.display_points = [];
         this.active_point = null;
+        this.last_drawn_image = null;
 
         this.overlay_canvas = this.container.getElementsByTagName("canvas")[0];
         this.bounds = this.container.getBoundingClientRect();
@@ -128,9 +131,7 @@ class MultiImageMap {
         this.overlay_canvas.width = this.bounds.width;
         this.overlay_canvas.height = this.bounds.height;
         this.display_points = toDisplayPoints(this.bounds, this.images);
-        relaxPoints(this.display_points, 20);
-        this.delaunay = d3_delaunay.Delaunay.from(this.display_points.map(p => new Proxy(p, point_to_array_handler)));
-        this.redraw()
+        this.relaxPoints(40);
     }
 
     addImage(img: HTMLImageElement, points: Array<Point>) {
@@ -138,26 +139,31 @@ class MultiImageMap {
         points.forEach(point => this.images.push(new DisplayableImage(img, point)));
     }
 
-    relaxPoints() {
+    relaxPoints(iterations: number = 1) {
         console.log("relaxing");
-        relaxPoints(this.display_points);
+        relaxPoints(this.display_points, iterations);
+        console.log("relaxed", this.display_points);
         this.delaunay = d3_delaunay.Delaunay.from(this.display_points.map(p => new Proxy(p, point_to_array_handler)));
-        this.redraw();
+        this.redraw(true);
     }
 
-    redraw() {
+    redraw(force_redraw : boolean= false) {
         if (!this.delaunay || this.images.length == 0) {
             return;
         }
-        console.log("redrawing", this.delaunay.points);
         let context = this.overlay_canvas.getContext("2d");
-        context.clearRect(0, 0, this.overlay_canvas.width, this.overlay_canvas.height);
 
         const i = this.active_point ? this.delaunay.find(this.active_point.x, this.active_point.y) : 0;
+        if (i == this.last_drawn_image && !force_redraw) {
+            return;
+        }
+
+        context.clearRect(0, 0, this.overlay_canvas.width, this.overlay_canvas.height);
         const img = this.display_points[i];
         const box = img.display.img.getBoundingClientRect();
         context.drawImage(img.display.img,
             img.point.x + img.display.x_offset, img.point.y + img.display.y_offset, box.width * img.display.scale, box.height * img.display.scale);
+        this.last_drawn_image = i;
 
         if (this.debug) {
             context.beginPath();
@@ -210,7 +216,7 @@ class ImageLoader {
 
 function displayImages(images: Array<MappedImage>, container: HTMLElement) {
     const urlParams = new URLSearchParams(window.location.search);
-    const debug = urlParams.get("debug") == "on";
+    const debug: boolean = urlParams.get("debug") == "on";
 
     let map = new MultiImageMap(container, debug);
 
@@ -238,6 +244,7 @@ function displayImages(images: Array<MappedImage>, container: HTMLElement) {
             if (debug) {
                 window.addEventListener("click", () => {
                     map.relaxPoints();
+                    map.redraw();
                 })
             }
         }
@@ -248,7 +255,7 @@ function displayImages(images: Array<MappedImage>, container: HTMLElement) {
         let img = loader.loadImage("/images/low." + image.src, "/images/" + image.src, () => {
             onLoadImage();
             map.addImage(img, image.points);
-        }, () => { map.redraw(); });
+        }, () => { map.redraw(true); });
         img.classList.add("load-image");
         container.appendChild(img);
 
