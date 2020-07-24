@@ -252,7 +252,7 @@ function displayImages(images: Array<MappedImage>, container: HTMLElement) {
     let loader = new ImageLoader(container.ownerDocument);
 
     images.forEach(image => {
-        let img = loader.loadImage("/images/low." + image.src, "/images/" + image.src, () => {
+        let img = loader.loadImage("images/low." + image.src, "images/" + image.src, () => {
             onLoadImage();
             map.addImage(img, image.points);
         }, () => { map.redraw(true); });
@@ -268,7 +268,7 @@ function displayImages(images: Array<MappedImage>, container: HTMLElement) {
 }
 
 window.addEventListener("load", event => {
-    fetch("/images/images.json").then(value => value.json()).then(
+    fetch("images/images.json").then(value => value.json()).then(
         parseImagesResponse).then(images =>
             displayImages(images, document.getElementById("map")));
 })
