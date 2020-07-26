@@ -1,12 +1,12 @@
 import * as d3_delaunay from "./d3-delaunay.js";
-import { parseImagesResponse, MappedImage, Point } from "./types.js"
+import { parseImagesResponse, MappedImage, Point, Circle } from "./types.js"
 
 class ScreenPosition {
     constructor(public x: number, public y: number) { }
 }
 
 class DisplayableImage {
-    constructor(public img: HTMLImageElement, public point: Point) { }
+    constructor(public img: HTMLImageElement, public point: Point, public weight: number) { }
 }
 
 class ScreenBounds {
@@ -18,7 +18,7 @@ class ImageDisplay {
 }
 
 class MovableImage {
-    constructor(public display: ImageDisplay, public point: ScreenPosition, public bounds: ScreenBounds) { }
+    constructor(public display: ImageDisplay, public point: ScreenPosition, public bounds: ScreenBounds, public weight: number) { }
 }
 
 function clamp(x: number, min: number, max: number) {
@@ -30,6 +30,7 @@ function relaxPoints(points: Array<MovableImage>, num_rounds = 1) {
     const max_force_component = 100;
     const max_movement_per_round = 20;
 
+    const average_weight = points.map(p => p.weight).reduce((a, b) => a + b, 0) / points.length;
     for (let round = 0; round < num_rounds; round++) {
         let forces = points.map(() => [0, 0]);
         points.forEach((p, i) => {
@@ -37,8 +38,9 @@ function relaxPoints(points: Array<MovableImage>, num_rounds = 1) {
                 if (i <= j) {
                     return;
                 }
-                let denominator = Math.pow(p.point.x - q.point.x, 2) + Math.pow(p.point.y - q.point.y, 2);
-                let components = [(p.point.x - q.point.x), (p.point.y - q.point.y)].map(v => v * spring_constant / denominator);
+                const denominator = Math.pow(p.point.x - q.point.x, 2) + Math.pow(p.point.y - q.point.y, 2);
+                const scale = Math.pow(p.weight + q.weight, 2) / average_weight / denominator;
+                let components = [(p.point.x - q.point.x), (p.point.y - q.point.y)].map(v => v * spring_constant * scale);
                 components = components.map(v => clamp(v, -max_force_component, max_force_component));
                 forces[i][0] += components[0];
                 forces[i][1] += components[1];
@@ -56,9 +58,6 @@ function relaxPoints(points: Array<MovableImage>, num_rounds = 1) {
             let old_x = p.point.x, old_y = p.point.y;
             p.point.x = clamp(p.point.x + movement[0], p.bounds.x_min, p.bounds.x_max);
             p.point.y = clamp(p.point.y + movement[1], p.bounds.y_min, p.bounds.y_max);
-            if (i == 0) {
-                console.log(old_x, old_y, "to", p.point.x, p.point.y);
-            }
         })
     }
 }
@@ -89,7 +88,7 @@ function toDisplayPoints(bounds: DOMRect, images: Array<DisplayableImage>): Arra
 
         const display = new ImageDisplay(i.img, left - x, top - y, scale);
 
-        return new MovableImage(display, new ScreenPosition(x, y), screen_bounds);
+        return new MovableImage(display, new ScreenPosition(x, y), screen_bounds, i.weight * scale);
     });
 }
 let point_to_array_handler = {
@@ -113,7 +112,7 @@ class MultiImageMap {
     display_points: Array<MovableImage>;
     delaunay: d3_delaunay.Delaunay;
     active_point: ScreenPosition | null;
-    last_drawn_image : number | null;
+    last_drawn_image: number | null;
 
     constructor(public container: HTMLElement, public debug: boolean = false) {
         this.images = [];
@@ -134,20 +133,19 @@ class MultiImageMap {
         this.relaxPoints(40);
     }
 
-    addImage(img: HTMLImageElement, points: Array<Point>) {
+    addImage(img: HTMLImageElement, points: Array<Circle>) {
         const first_index = this.images.length;
-        points.forEach(point => this.images.push(new DisplayableImage(img, point)));
+        points.forEach(point => this.images.push(new DisplayableImage(img, point.center, point.radius)));
     }
 
     relaxPoints(iterations: number = 1) {
-        console.log("relaxing");
+        console.log("relaxing with", iterations, "iterations");
         relaxPoints(this.display_points, iterations);
-        console.log("relaxed", this.display_points);
         this.delaunay = d3_delaunay.Delaunay.from(this.display_points.map(p => new Proxy(p, point_to_array_handler)));
         this.redraw(true);
     }
 
-    redraw(force_redraw : boolean= false) {
+    redraw(force_redraw: boolean = false) {
         if (!this.delaunay || this.images.length == 0) {
             return;
         }
@@ -174,6 +172,20 @@ class MultiImageMap {
             context.strokeStyle = "#ccc";
             this.delaunay.voronoi([0, 0, this.overlay_canvas.width, this.overlay_canvas.height]).render(context);
             context.stroke();
+
+            this.display_points.forEach((i, index) => {
+                const rect = i.display.img.getBoundingClientRect();
+                context.strokeStyle = "#f004";
+                context.beginPath();
+                context.arc(i.point.x, i.point.y, i.weight * Math.max(rect.width, rect.height), 0, 2 * Math.PI);
+                context.stroke();
+                if (index == this.last_drawn_image) {
+                    context.fillStyle = "#f004";
+                    context.beginPath();
+                    context.arc(i.point.x, i.point.y, i.weight * Math.max(rect.width, rect.height), 0, 2 * Math.PI);
+                    context.fill();
+                }
+            })
         }
     }
 }
@@ -191,7 +203,6 @@ class ImageLoader {
             console.log("finished first load of", img);
             onLoad();
             img.removeEventListener("load", finishLowResLoad);
-            console.log("removed listener from ", img);
             this.loadHighRes(img, high_res_src, onHighResLoad);
         }
 
