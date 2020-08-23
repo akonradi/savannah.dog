@@ -1,0 +1,44 @@
+<html>
+
+<head>
+    <script type='module' src="js/editor.js"></script>
+    <style type="text/css">
+        div.dot {
+            background-color: red;
+            opacity: 0.5;
+            border: solid gray 0.1em;
+            border-radius: 100%;
+            position: absolute;
+        }
+
+        #image-select>div {
+            display: inline-block;
+            width: 30em;
+            height: 30em;
+            position: relative;
+        }
+
+        #image-select div img.select {
+            width: 100%;
+            height: 100%;
+        }
+
+        #output {
+            float: right;
+            height: 100%;
+            width: 20em;
+        }
+        #output > * {
+            width: 100%;
+            height: 100%;
+        }
+    </style>
+</head>
+
+<body>
+    <div id="output"></div>
+    <div id="image-select"></div>
+    <div id="single-image" style="display:none;"></div>
+</body>
+
+</html>
