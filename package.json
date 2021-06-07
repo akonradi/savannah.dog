@@ -1,0 +1,22 @@
+{
+    "files": [
+        "images/",
+        "src/"
+    ],
+    "scripts": {
+        "start": "yarn build; python3 -m http.server 8080",
+        "build": "cp node_modules/d3-delaunay/dist/d3-delaunay.js js/; tsc",
+        "deploy": "yarn install; yarn build; gh-pages --src 'js/*' --src '*.html' --src 'images/*' -d ."
+    },
+    "devDependencies": {
+        "gh-pages": "3.2.0",
+	"nodemon": "2.0.7",
+        "typescript": "4.3.2",
+        "d3-delaunay": "^6.0.1"
+    },
+    "name": "savannah.dog",
+    "version": "1.0.0-dev",
+    "description": "http://savannah.dog source",
+    "repository": "git@github.com:akonradi/savannah.dog.git",
+    "author": "Alex Konradi <alexkonradi@gmail.com>"
+}
