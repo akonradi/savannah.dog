@@ -44,6 +44,29 @@
             opacity: 0;
             overflow: hidden;
         }
+
+        @keyframes fade-out {
+            from { opacity: 1; }
+            to { opacity: 0; }
+        }
+
+        div#instructions {
+            position: absolute;
+            bottom: 4em;
+            width: 100%;
+            z-index: 200;
+            text-align: center;
+            animation-name: fade-out;
+            animation-duration: 3s;
+            animation-delay: 5s;
+            animation-fill-mode: forwards;
+        }
+
+        #instructions span {
+            padding: 1em;
+            border-radius: 2em;
+            background-color: #fffa;
+        }
     </style>
 </head>
 
@@ -51,6 +74,7 @@
     <div id="map">
         <canvas></canvas>
         <div id="loading"><span>loading</span></div>
+        <div id="instructions"><span>Move your mouse or finger around the screen!</span></div>
     </div>
 </body>
 
