@@ -111,6 +111,7 @@ class MultiImageMap {
     constructor(container, debug = false) {
         this.container = container;
         this.debug = debug;
+        this.touch_opacity = 0;
         this.images = [];
         this.display_points = [];
         this.active_point = null;
@@ -136,20 +137,31 @@ class MultiImageMap {
         this.delaunay = d3_delaunay.Delaunay.from(this.display_points.map(p => new Proxy(p, point_to_array_handler)));
         this.redraw(true);
     }
+    setTouchOpacity(opacity) {
+        this.touch_opacity = opacity;
+    }
     redraw(force_redraw = false) {
         if (!this.delaunay || this.images.length == 0) {
             return;
         }
         let context = this.overlay_canvas.getContext("2d");
         const i = this.active_point ? this.delaunay.find(this.active_point.x, this.active_point.y) : 0;
-        if (i == this.last_drawn_image && !force_redraw) {
-            return;
-        }
         context.clearRect(0, 0, this.overlay_canvas.width, this.overlay_canvas.height);
         const img = this.display_points[i];
         const box = img.display.img.getBoundingClientRect();
         context.drawImage(img.display.img, img.point.x + img.display.x_offset, img.point.y + img.display.y_offset, box.width * img.display.scale, box.height * img.display.scale);
         this.last_drawn_image = i;
+        if (this.active_point != null) {
+            context.beginPath();
+            context.arc(this.active_point.x, this.active_point.y, 30, 0, 2 * Math.PI);
+            const opacity_suffix = Math.round(this.touch_opacity * 255).toString(16).padStart(2, '0');
+            const fill_style = "#999999" + opacity_suffix;
+            context.fillStyle = fill_style;
+            context.strokeStyle = "#ffffff" + opacity_suffix;
+            context.setLineDash([5, 5]);
+            context.fill();
+            context.stroke();
+        }
         if (this.debug) {
             context.beginPath();
             this.delaunay.renderPoints(context);
@@ -201,12 +213,47 @@ class ImageLoader {
         high_res.src = high_res_src;
     }
 }
+class FixedTimeEvent {
+    constructor(interval, callback) {
+        this.interval = interval;
+        this.callback = callback;
+        this.timeout_handle = null;
+    }
+    start() {
+        if (this.timeout_handle != null) {
+            return;
+        }
+        this.timeout_handle = setInterval(() => this.onEvent(), this.interval * 1000);
+    }
+    onEvent() {
+        if (!this.callback()) {
+            clearInterval(this.timeout_handle);
+        }
+    }
+}
 function displayImages(images, container) {
     const urlParams = new URLSearchParams(window.location.search);
     const debug = urlParams.get("debug") == "on";
     let map = new MultiImageMap(container, debug);
     let loadedCount = 0;
     let loaded_msg = document.getElementById("loading").getElementsByTagName("span")[0];
+    let touchOpacity = 0.5;
+    let reduceTouchOpacity = () => {
+        map.setTouchOpacity(touchOpacity);
+        touchOpacity -= 0.02;
+        if (touchOpacity > 0) {
+            map.redraw();
+            return true;
+        }
+        return false;
+    };
+    let lower_opacity = new FixedTimeEvent(0.2, reduceTouchOpacity);
+    map.setTouchOpacity(touchOpacity);
+    function onInteraction(x, y) {
+        map.active_point = new ScreenPosition(x, y);
+        map.redraw();
+        lower_opacity.start();
+    }
     function onLoadImage() {
         ++loadedCount;
         loaded_msg.innerHTML = `loaded ${loadedCount} of ${images.length}`;
@@ -214,12 +261,10 @@ function displayImages(images, container) {
             map.render();
             map.overlay_canvas.addEventListener("touchmove", event => {
                 event.preventDefault();
-                map.active_point = new ScreenPosition(event.touches[0].clientX, event.touches[0].clientY);
-                map.redraw();
+                onInteraction(event.touches[0].clientX, event.touches[0].clientY);
             });
             map.overlay_canvas.addEventListener("mousemove", event => {
-                map.active_point = new ScreenPosition(event.clientX, event.clientY);
-                map.redraw();
+                onInteraction(event.clientX, event.clientY);
             });
             window.addEventListener("resize", () => {
                 map.active_point = null;
