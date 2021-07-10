@@ -114,6 +114,7 @@ class MultiImageMap {
     active_point: ScreenPosition | null;
     last_drawn_image: number | null;
     touch_opacity: number = 0;
+    measure_box: HTMLElement;
 
     constructor(public container: HTMLElement, public debug: boolean = false) {
         this.images = [];
@@ -123,6 +124,7 @@ class MultiImageMap {
 
         this.overlay_canvas = this.container.getElementsByTagName("canvas")[0];
         this.bounds = this.container.getBoundingClientRect();
+        this.measure_box = this.container.ownerDocument.getElementById("measure-box");
     }
 
     render() {
@@ -166,13 +168,15 @@ class MultiImageMap {
 
         if (this.active_point != null) {
             context.beginPath();
-            context.arc(this.active_point.x, this.active_point.y, 30, 0, 2 * Math.PI);
+            const cm_pixels = this.measure_box.getBoundingClientRect().width;
+            context.arc(this.active_point.x, this.active_point.y, cm_pixels * 1.2, 0, 2 * Math.PI);
             const opacity_suffix = 
                 Math.round(this.touch_opacity * 255).toString(16).padStart(2, '0');
-            const fill_style = "#999999" + opacity_suffix;
+            const fill_style = "#bbbbbb" + opacity_suffix;
             context.fillStyle = fill_style;
             context.strokeStyle = "#ffffff" + opacity_suffix;
             context.setLineDash([5, 5]);
+            context.lineWidth = cm_pixels * .05;
             context.fill();
             context.stroke();
         }
