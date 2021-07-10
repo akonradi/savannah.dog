@@ -13,6 +13,7 @@
             padding: 0px;
             margin: 0px;
             overflow: hidden;
+            font-size: 0.6cm;
         }
 
         #map {
@@ -52,7 +53,7 @@
 
         div#instructions {
             position: absolute;
-            bottom: 4em;
+            bottom: 10%;
             width: 100%;
             z-index: 200;
             text-align: center;
@@ -62,10 +63,12 @@
             animation-fill-mode: forwards;
         }
 
-        #instructions span {
+        #instructions div {
+            width: fit-content;
             padding: 1em;
             border-radius: 2em;
             background-color: #fffa;
+            display: inline-block;
         }
     </style>
 </head>
@@ -74,8 +77,9 @@
     <div id="map">
         <canvas></canvas>
         <div id="loading"><span>loading</span></div>
-        <div id="instructions"><span>Move your mouse or finger around the screen!</span></div>
     </div>
+    <div id="instructions"><div>Move your mouse or finger around the screen!</div></div>
+    <div id="measure-box" style="display: block; width: 1cm; height: 1cm; opacity: 0;"></div>
 </body>
 
 </html>
