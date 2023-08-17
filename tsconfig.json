@@ -12,6 +12,13 @@
         ]
     },
     "compileOnSave": true,
-    "exclude": ["js/**"],
-    "files": ["types.ts", "map.ts", "editor.ts", "d3-delaunay.js"]
+    "exclude": [
+        "js/**"
+    ],
+    "files": [
+        "types.ts",
+        "map.ts",
+        "editor.ts",
+        "d3-delaunay.js"
+    ]
 }

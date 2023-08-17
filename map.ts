@@ -170,7 +170,7 @@ class MultiImageMap {
             context.beginPath();
             const cm_pixels = this.measure_box.getBoundingClientRect().width;
             context.arc(this.active_point.x, this.active_point.y, cm_pixels * 1.2, 0, 2 * Math.PI);
-            const opacity_suffix = 
+            const opacity_suffix =
                 Math.round(this.touch_opacity * 255).toString(16).padStart(2, '0');
             const fill_style = "#bbbbbb" + opacity_suffix;
             context.fillStyle = fill_style;
@@ -272,7 +272,7 @@ function displayImages(images: Array<MappedImage>, container: HTMLElement) {
     let loaded_msg = document.getElementById("loading").getElementsByTagName("span")[0];
 
     let touchOpacity = 0.5;
-    let reduceTouchOpacity = () : boolean => {
+    let reduceTouchOpacity = (): boolean => {
         map.setTouchOpacity(touchOpacity);
         touchOpacity -= 0.02;
         if (touchOpacity > 0) {
@@ -283,7 +283,7 @@ function displayImages(images: Array<MappedImage>, container: HTMLElement) {
     };
     let lower_opacity = new FixedTimeEvent(0.2, reduceTouchOpacity);
     map.setTouchOpacity(touchOpacity);
-    
+
     function onInteraction(x: number, y: number) {
         map.active_point = new ScreenPosition(x, y);
         map.redraw();
