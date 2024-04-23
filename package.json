@@ -9,7 +9,7 @@
         "deploy": "yarn install; yarn build; gh-pages --src 'js/*' --src '*.html' --src 'images/*' -d ."
     },
     "devDependencies": {
-        "gh-pages": "3.2.0",
+        "gh-pages": "5.0.0",
         "nodemon": "2.0.7",
         "typescript": "4.3.2",
         "d3-delaunay": "^6.0.1"
